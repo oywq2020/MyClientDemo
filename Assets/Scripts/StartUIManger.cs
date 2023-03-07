@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.UI;
 using  Common;
+using UnityEngine.SceneManagement;
 
 public class StartUIManger : MonoBehaviour
 {
@@ -99,7 +100,10 @@ public class StartUIManger : MonoBehaviour
         #endregion
 
         #region Cancel
-        
+        mainPanel.Find("StartBtn").GetComponent<Button>().onClick.AddListener(() =>
+        {
+            SceneManager.LoadScene("Main");
+        });
         
         mainPanel.Find("CancelBtn").GetComponent<Button>().onClick.AddListener(() =>
         {

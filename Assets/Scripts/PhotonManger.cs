@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml.Serialization;
 using Common;
 using UnityEngine;
 using ExitGames.Client.Photon;
-using UnityEngine.UIElements;
+using UnityEngine.SceneManagement;
 
 public class PhotonManger : MonoBehaviour,IPhotonPeerListener
 {
@@ -22,12 +23,22 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
 
     private void Awake()
     {
-        Instance = this;
-        
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(this.gameObject);
+        }
+        else if(Instance!=this)
+        {
+            Destroy(this.gameObject);
+            return;
+        }
         peer  = new PhotonPeer(this, ConnectionProtocol.Udp);
         peer.Connect("127.0.0.1:5055", "Demo1");
     }
 
+    
+    
     void temp()
     {
         //send an event to server
@@ -46,7 +57,15 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
 
     private void OnDestroy()
     {
-        peer.Disconnect();
+        if(Instance==this)
+        {
+            if (PlayerController.Instance!=null)
+            {
+                Destroy(PlayerController.Instance.gameObject);                
+            }
+            
+            peer.Disconnect();
+        }
     }
 
 
@@ -82,7 +101,17 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
                 OnHandleRegisterResponse(operationResponse);
                 break;
             case (byte)OperationCode.LogOut:
-                OnHandleLogOutResponse(operationResponse);
+                OnHandleLogOutResponse(operationResponse);break;
+                
+            case (byte)OperationCode.SyncSpawnPlayer:
+                OnHandleSyncSpawnPlayerResponse(operationResponse);
+                break;
+                
+            case (byte)OperationCode.SyncPosInfo:
+                OnHandleSyncPosInfoResponse(operationResponse);
+                break;
+            case (byte)OperationCode.SyncAttack:
+                OnHandleSyncAttackResponse(operationResponse);
                 break;
             default:break;
            
@@ -102,8 +131,43 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
     {
         StartUIManger.Instance.OnLogOut((ReturnCode)operationResponse.ReturnCode);
     }
+    
+    
+    private void OnHandleSyncSpawnPlayerResponse(OperationResponse operationResponse)
+    {
+        object usernameListObj;
+        operationResponse.Parameters.TryGetValue((byte) ParameterCode.UsernameList, out usernameListObj);
+        string usernameListString = usernameListObj.ToString();
+
+        Debug.Log(usernameListObj);
+        
+        //Deserialization 
+
+        using (StringReader reader = new StringReader(usernameListString))
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(List<string>));
+            
+            //Deserialize 
+            List<string> usernameList = (List<string>) serializer.Deserialize(reader);
+            
+            //Spawn other player in online
+            Debug.Log(usernameList.Count);
+            
+            PlayerController.Instance.OnSpawnPlayerResponse(usernameList);
+        }
+    }
+
+
+    private void OnHandleSyncPosInfoResponse(OperationResponse operationResponse)
+    {
+        
+    }
+    private void OnHandleSyncAttackResponse(OperationResponse operationResponse)
+    {
+        
+    }
     //call when client connection status change 
-  
+
     public void OnStatusChanged(StatusCode statusCode)
     {
        
@@ -113,6 +177,39 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
     //such as other clients need a request for sychroncizing
     public void OnEvent(EventData eventData)
     {
-        throw new NotImplementedException();
+        switch (eventData.Code)
+        {
+            case (byte)EventCode.SyncSpawnPlayer:
+                OnSyncSpawnPlayerEvent(eventData);
+                break;
+            case (byte)EventCode.KickOut:
+                OnKickOutEvent(eventData);
+                break;
+            case (byte)EventCode.ExitRoom:
+                OnPlayerExitRoom(eventData);
+                break;
+        }
+    }
+
+    private void OnSyncSpawnPlayerEvent(EventData eventData)
+    {
+        object usernameObj;
+        eventData.Parameters.TryGetValue((byte) EventCode.SyncSpawnPlayer,out usernameObj);
+        
+        //Spawn new onlined player after get the name
+        PlayerController.Instance.OnSpawnPlayerEvent(usernameObj.ToString());
+    }
+    
+    private void OnKickOutEvent(EventData eventData)
+    {
+       //this client is kicked out shift scene to Start
+       SceneManager.LoadScene("Scenes/StartScene");
+    }
+
+    private void OnPlayerExitRoom(EventData eventData)
+    {
+        object usernameObj;
+        eventData.Parameters.TryGetValue((byte) EventCode.SyncSpawnPlayer,out usernameObj);
+        PlayerController.Instance.OnPlayerExitRoom(usernameObj.ToString());
     }
 }
