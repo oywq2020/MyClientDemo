@@ -188,13 +188,16 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
             case (byte)EventCode.ExitRoom:
                 OnPlayerExitRoom(eventData);
                 break;
+            case (byte)EventCode.SyncPosRot:
+                OnSyncPosRot(eventData);
+                break;
         }
     }
 
     private void OnSyncSpawnPlayerEvent(EventData eventData)
     {
         object usernameObj;
-        eventData.Parameters.TryGetValue((byte) EventCode.SyncSpawnPlayer,out usernameObj);
+        eventData.Parameters.TryGetValue((byte)ParameterCode.Username,out usernameObj);
         
         //Spawn new onlined player after get the name
         PlayerController.Instance.OnSpawnPlayerEvent(usernameObj.ToString());
@@ -209,7 +212,23 @@ public class PhotonManger : MonoBehaviour,IPhotonPeerListener
     private void OnPlayerExitRoom(EventData eventData)
     {
         object usernameObj;
-        eventData.Parameters.TryGetValue((byte) EventCode.SyncSpawnPlayer,out usernameObj);
+        eventData.Parameters.TryGetValue((byte)ParameterCode.Username,out usernameObj);
         PlayerController.Instance.OnPlayerExitRoom(usernameObj.ToString());
+    }
+
+    private void OnSyncPosRot(EventData eventData)
+    {
+        object playerDataListString;
+        eventData.Parameters.TryGetValue((byte)ParameterCode.PlayerData,out playerDataListString);
+        
+        using (StringReader reader = new StringReader(playerDataListString.ToString()))
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(List<PlayerData>));
+            
+            //Deserialize 
+            List<PlayerData> playerDataList = (List<PlayerData>) serializer.Deserialize(reader);
+            
+            PlayerController.Instance.OnSyncPosRotEvent(playerDataList);
+        }
     }
 }
